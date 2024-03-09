@@ -3,7 +3,7 @@ using System.Drawing;
 using System.Threading;
 using System.Windows.Forms;
 using System.Diagnostics;
-
+using System.Drawing.Imaging;
 
 namespace ImageDownsizer_Homework
 {
@@ -80,7 +80,7 @@ namespace ImageDownsizer_Homework
                     int newWidth = (int)(originalImage.Width * percentage / 100);
                     int newHeight = (int)(originalImage.Height * percentage / 100);
 
-                    Image downscaledImage = ResizeImage(originalImage, newWidth, newHeight);
+                    Image downscaledImage = ResizeImageParallel(originalImage, newWidth, newHeight);
                     SetImageOnMainThread(pictureBox2, downscaledImage);
                     stopwatch.Stop();
                     this.Invoke(new Action(() =>
@@ -93,6 +93,50 @@ namespace ImageDownsizer_Homework
                 resizingThread.Start();
             }
         }
+        private Image ResizeImageParallel(Image originalImage, int newWidth, int newHeight)
+        {
+            byte[,,] originalImageData = ConvertToColor(originalImage);
+            byte[,,] newImageData = new byte[newWidth, newHeight, 3];
+
+           
+            int originalWidth = originalImage.Width;
+            int originalHeight = originalImage.Height;
+
+            Parallel.For(0, newHeight, y =>
+            {
+                Debug.WriteLine($"Processing line {y} on thread {Thread.CurrentThread.ManagedThreadId}");
+
+                for (int x = 0; x < newWidth; x++)
+                {
+                    
+                    float originalX = x * originalWidth / (float)newWidth;
+                    float originalY = y * originalHeight / (float)newHeight;
+
+                    int x1 = (int)Math.Floor(originalX);
+                    int x2 = Math.Min(x1 + 1, originalWidth - 1);
+                    int y1 = (int)Math.Floor(originalY);
+                    int y2 = Math.Min(y1 + 1, originalHeight - 1);
+
+                    float xFrac = originalX - x1;
+                    float yFrac = originalY - y1;
+
+                    for (int channel = 0; channel < 3; channel++)
+                    {
+                        float interpolatedValue = (1 - xFrac) * (1 - yFrac) * originalImageData[x1, y1, channel] +
+                                                  xFrac * (1 - yFrac) * originalImageData[x2, y1, channel] +
+                                                  (1 - xFrac) * yFrac * originalImageData[x1, y2, channel] +
+                                                  xFrac * yFrac * originalImageData[x2, y2, channel];
+
+                        newImageData[x, y, channel] = (byte)interpolatedValue;
+                    }
+                }
+            });
+
+            return CreateBitmapFrom3DArray(newImageData, newWidth, newHeight);
+        }
+
+
+
 
         private Image ResizeImage(Image originalImage, int newWidth, int newHeight)
         {
@@ -122,18 +166,38 @@ namespace ImageDownsizer_Homework
             return colorImage;
         }
 
-        private Image CreateBitmapFrom3DArray(byte[,,] array, int width, int height)
+        private Bitmap CreateBitmapFrom3DArray(byte[,,] array, int width, int height)
         {
-            Bitmap bitmap = new Bitmap(width, height);
+            
+            Bitmap bitmap = new Bitmap(width, height, PixelFormat.Format24bppRgb);
 
-            for (int x = 0; x < width; x++)
+        
+            BitmapData bitmapData = bitmap.LockBits(new Rectangle(0, 0, width, height), ImageLockMode.WriteOnly, bitmap.PixelFormat);
+
+            
+            int bytes = bitmapData.Stride * bitmapData.Height;
+            byte[] rgbValues = new byte[bytes];
+
+            
+            int counter = 0;
+            for (int y = 0; y < height; y++)
             {
-                for (int y = 0; y < height; y++)
+                for (int x = 0; x < width; x++)
                 {
-                    Color color = Color.FromArgb(array[x, y, 0], array[x, y, 1], array[x, y, 2]);
-                    bitmap.SetPixel(x, y, color);
+                    rgbValues[counter++] = array[x, y, 2]; // Blue
+                    rgbValues[counter++] = array[x, y, 1]; // Green
+                    rgbValues[counter++] = array[x, y, 0]; // Red
                 }
+                
+                counter += bitmapData.Stride - (width * 3);
             }
+
+            
+            System.Runtime.InteropServices.Marshal.Copy(rgbValues, 0, bitmapData.Scan0, bytes);
+
+            
+            bitmap.UnlockBits(bitmapData);
+
             return bitmap;
         }
 
