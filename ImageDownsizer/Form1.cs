@@ -58,6 +58,8 @@ namespace ImageDownsizer_Homework
 
                 stopwatch.Stop();
                 MessageBox.Show($"Non-threaded resizing took {stopwatch.ElapsedMilliseconds} ms.", "Time Measurement");
+                var path = Path.Combine(Directory.GetCurrentDirectory(), @"..\..\..\logs.txt");
+                File.AppendAllText(path, $"Non-threaded resizing took {stopwatch.ElapsedMilliseconds} ms.\n");
             }
         }
 
@@ -88,6 +90,8 @@ namespace ImageDownsizer_Homework
                         MessageBox.Show($"Threaded resizing took {stopwatch.ElapsedMilliseconds} ms.", "Time Measurement");
                         label1.Text = originalImage.Width.ToString() + "x" + originalImage.Height.ToString();
                         label2.Text = newWidth.ToString() + "x" + newHeight.ToString();
+                        var path = Path.Combine(Directory.GetCurrentDirectory(), @"..\..\..\logs.txt");
+                        File.AppendAllText(path, $"Threaded resizing took {stopwatch.ElapsedMilliseconds} ms.\n");
                     }));
                 });
                 resizingThread.Start();
