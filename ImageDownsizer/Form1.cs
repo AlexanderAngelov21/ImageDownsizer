@@ -53,6 +53,7 @@ namespace ImageDownsizer_Homework
 
                 Image downscaledImage = ResizeImage(originalImage, newWidth, newHeight);
                 pictureBox2.Image = downscaledImage;
+                SaveImage(downscaledImage, "downscaled_sequential.jpg");
                 label1.Text = originalImage.Width.ToString() + "x" + originalImage.Height.ToString();
                 label2.Text = newWidth.ToString() + "x" + newHeight.ToString();
 
@@ -87,6 +88,7 @@ namespace ImageDownsizer_Homework
                     stopwatch.Stop();
                     this.Invoke(new Action(() =>
                     {
+                        SaveImage(downscaledImage, "downscaled_parallel.jpg");
                         MessageBox.Show($"Threaded resizing took {stopwatch.ElapsedMilliseconds} ms.", "Time Measurement");
                         label1.Text = originalImage.Width.ToString() + "x" + originalImage.Height.ToString();
                         label2.Text = newWidth.ToString() + "x" + newHeight.ToString();
@@ -102,39 +104,64 @@ namespace ImageDownsizer_Homework
             byte[,,] originalImageData = ConvertToColor(originalImage);
             byte[,,] newImageData = new byte[newWidth, newHeight, 3];
 
-           
             int originalWidth = originalImage.Width;
             int originalHeight = originalImage.Height;
 
-            Parallel.For(0, newHeight, y =>
+            
+            int threadCount = Environment.ProcessorCount;
+            int rowsPerThread = newHeight / threadCount;
+            List<Thread> threads = new List<Thread>();
+
+            for (int threadIndex = 0; threadIndex < threadCount; threadIndex++)
             {
-                Debug.WriteLine($"Processing line {y} on thread {Thread.CurrentThread.ManagedThreadId}");
+                int startY = threadIndex * rowsPerThread;
+                int endY = (threadIndex == threadCount - 1) ? newHeight : startY + rowsPerThread;
 
-                for (int x = 0; x < newWidth; x++)
+                Thread thread = new Thread(() =>
                 {
-                    
-                    float originalX = x * originalWidth / (float)newWidth;
-                    float originalY = y * originalHeight / (float)newHeight;
-
-                    int x1 = (int)Math.Floor(originalX);
-                    int x2 = Math.Min(x1 + 1, originalWidth - 1);
-                    int y1 = (int)Math.Floor(originalY);
-                    int y2 = Math.Min(y1 + 1, originalHeight - 1);
-
-                    float xFrac = originalX - x1;
-                    float yFrac = originalY - y1;
-
-                    for (int channel = 0; channel < 3; channel++)
+                    for (int y = startY; y < endY; y++)
                     {
-                        float interpolatedValue = (1 - xFrac) * (1 - yFrac) * originalImageData[x1, y1, channel] +
-                                                  xFrac * (1 - yFrac) * originalImageData[x2, y1, channel] +
-                                                  (1 - xFrac) * yFrac * originalImageData[x1, y2, channel] +
-                                                  xFrac * yFrac * originalImageData[x2, y2, channel];
+                        Debug.WriteLine($"Processing line {y} on thread {Thread.CurrentThread.ManagedThreadId}");
+                        for (int x = 0; x < newWidth; x++)
+                        {
+                            float originalX = x * originalWidth / (float)newWidth;
+                            float originalY = y * originalHeight / (float)newHeight;
 
-                        newImageData[x, y, channel] = (byte)interpolatedValue;
+                            int x1 = (int)Math.Floor(originalX);
+                            int x2 = Math.Min(x1 + 1, originalWidth - 1);
+                            int y1 = (int)Math.Floor(originalY);
+                            int y2 = Math.Min(y1 + 1, originalHeight - 1);
+
+                            float xFrac = originalX - x1;
+                            float yFrac = originalY - y1;
+
+                            for (int channel = 0; channel < 3; channel++)
+                            {
+                                float interpolatedValue = (1 - xFrac) * (1 - yFrac) * originalImageData[x1, y1, channel] +
+                                                          xFrac * (1 - yFrac) * originalImageData[x2, y1, channel] +
+                                                          (1 - xFrac) * yFrac * originalImageData[x1, y2, channel] +
+                                                          xFrac * yFrac * originalImageData[x2, y2, channel];
+
+                                newImageData[x, y, channel] = (byte)interpolatedValue;
+                            }
+                        }
                     }
-                }
-            });
+                });
+
+                threads.Add(thread);
+            }
+
+            
+            foreach (var thread in threads)
+            {
+                thread.Start();
+            }
+
+            
+            foreach (var thread in threads)
+            {
+                thread.Join();
+            }
 
             return CreateBitmapFrom3DArray(newImageData, newWidth, newHeight);
         }
@@ -216,6 +243,24 @@ namespace ImageDownsizer_Homework
                 pictureBox.Image = image;
             }
         }
+        private void SaveImage(Image image, string fileName)
+        {
+           
+            var projectRootPath = Directory.GetParent(Directory.GetCurrentDirectory()).Parent.Parent.FullName;
+
+            
+            string filePath = Path.Combine(projectRootPath, fileName);
+
+           
+            if (!Directory.Exists(projectRootPath))
+            {
+                Directory.CreateDirectory(projectRootPath);
+            }
+
+            
+            image.Save(filePath, ImageFormat.Jpeg);
+        }
+
         private void Form1_Load(object sender, EventArgs e)
         {
 
