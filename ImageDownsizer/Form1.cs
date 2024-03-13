@@ -183,16 +183,32 @@ namespace ImageDownsizer_Homework
             int height = bitmap.Height;
             byte[,,] colorImage = new byte[width, height, 3];
 
-            for (int x = 0; x < width; x++)
+           
+            Rectangle rect = new Rectangle(0, 0, width, height);
+            BitmapData bitmapData = bitmap.LockBits(rect, ImageLockMode.ReadOnly, PixelFormat.Format24bppRgb);
+
+            
+            int bytes = Math.Abs(bitmapData.Stride) * height;
+            byte[] rgbValues = new byte[bytes];
+
+            
+            System.Runtime.InteropServices.Marshal.Copy(bitmapData.Scan0, rgbValues, 0, bytes);
+
+            int stride = bitmapData.Stride;
+            for (int y = 0; y < height; y++)
             {
-                for (int y = 0; y < height; y++)
+                for (int x = 0; x < width; x++)
                 {
-                    Color pixel = bitmap.GetPixel(x, y);
-                    colorImage[x, y, 0] = pixel.R;
-                    colorImage[x, y, 1] = pixel.G;
-                    colorImage[x, y, 2] = pixel.B;
+                    
+                    int index = y * stride + x * 3; 
+                    colorImage[x, y, 0] = rgbValues[index + 2]; // R
+                    colorImage[x, y, 1] = rgbValues[index + 1]; // G
+                    colorImage[x, y, 2] = rgbValues[index];     // B
                 }
             }
+
+            
+            bitmap.UnlockBits(bitmapData);
 
             return colorImage;
         }

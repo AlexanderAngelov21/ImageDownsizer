@@ -4,3 +4,9 @@ Non-threaded resizing took 547 ms.
 Threaded resizing took 542 ms.
 Non-threaded resizing took 297176 ms.
 Threaded resizing took 19659 ms.
+Non-threaded resizing took 4543 ms.
+Non-threaded resizing took 84 ms.
+Threaded resizing took 666 ms.
+Threaded resizing took 743 ms.
+Non-threaded resizing took 194 ms.
+Threaded resizing took 1562 ms.
